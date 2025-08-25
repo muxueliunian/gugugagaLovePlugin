@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>gugugagaLovePlugin</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 请根据你的宿主仓库路径手动调整下面的 ProjectReference -->
+    <ProjectReference Include="..\..\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer.csproj" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <Target Name="PostBuildCopy" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
+    <PropertyGroup>
+      <PluginOutDir>$(LOCALAPPDATA)\UmamusumeResponseAnalyzer\Plugins\gugugagaLovePlugin\</PluginOutDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(PluginOutDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginOutDir)" />
+  </Target>
+</Project>

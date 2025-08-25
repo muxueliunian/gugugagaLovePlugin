@@ -1,0 +1,23 @@
+# Build
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+
+# Plugin runtime outputs
+PluginData/
+daily-json/
+race_rewards.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Rider/VSCode
+.idea/
+.vscode/

@@ -99,14 +99,11 @@
 - **时区兼容性**: 当前使用 "China Standard Time"，在 Linux 环境可能需要调整为 "Asia/Shanghai"
 - **PostBuild 脚本**: 仅在 Windows 下有效，其他平台请手动部署
 
-## 📖 开发文档
+## 📖 开发文档（暂时还没搞无内容）
 
 - [已知物品ID对照表](docs/KnownItemIds.md) - 维护宝石等物品的ID映射关系
 - [项目设计说明](docs/项目设计.md) - 详细的架构设计与实现原理
 
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
 
 ### 新增宝石ID支持
 

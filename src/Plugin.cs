@@ -10,12 +10,21 @@ public class Plugin : IPlugin
 {
     public string Name => "gugugagaLovePlugin";
     public string Author => "muxiulianNian";
-    public Version Version => new(1, 0, 2);
+    public Version Version => new(1, 1, 0);
     public string[] Targets => Array.Empty<string>();
 
     [PluginSetting]
     [PluginDescription("每日宝石汇总文件(gugugagaMagicCarrot.json)的输出目录。留空=工作目录 PluginData/<插件名>；可填绝对或相对路径。")]
     public string JsonOutputDirectory { get; set; } = string.Empty;
+
+    // 新增：粉丝统计功能开关与输出目录（默认关闭，避免改变旧行为） gugugaga!!!
+    [PluginSetting]
+    [PluginDescription("是否启用粉丝统计(采集 summary_user_info_array)。默认 false。")]
+    public bool EnableFansCollection { get; set; } = false;
+
+    [PluginSetting]
+    [PluginDescription("粉丝快照(NDJSON)输出目录。留空=工作目录 PluginData/<插件名>；可填绝对或相对路径。")]
+    public string FansOutputDirectory { get; set; } = string.Empty;
 
     private static readonly ConcurrentDictionary<string, SessionAggregate> _sessions = new();
     private static readonly object _fileLock = new();
@@ -26,6 +35,10 @@ public class Plugin : IPlugin
         //宝石id，如果以后有新的id填进来，不过我觉得cy应该就一种
     };
     private const string DailyGemFileName = "gugugagaMagicCarrot.json";
+
+    // 新增：粉丝快照文件锁与文件名
+    private static readonly object _fansFileLock = new();
+    private const string FansNdjsonName = "gugugagaFans.ndjson";
 
     public void Initialize()
     {
@@ -76,6 +89,19 @@ public class Plugin : IPlugin
         }
         // 其他可能的数据集也可尝试解析 race_reward_info
         TryRecordRewards(sessionKey, data);
+
+        // 新增：在不影响原有功能的情况下尝试采集粉丝快照（受开关控制）
+        try
+        {
+            if (EnableFansCollection)
+            {
+                TryRecordFans(data);
+            }
+        }
+        catch
+        {
+            // 防御性：采集异常不影响原有逻辑
+        }
     }
 
     private void TryRecordRewards(string sessionKey, JObject container)
@@ -219,6 +245,98 @@ public class Plugin : IPlugin
         addFromToken(rewardInfo["race_reward_plus_bonus"], "race_reward_plus_bonus");
         addFromToken(rewardInfo["race_reward_bonus_win"], "race_reward_bonus_win");
         return list;
+    }
+
+    // 新增：粉丝数据文件采集。解析 summary_user_info_array 将关键信息写入JSON
+    private void TryRecordFans(JObject data)
+    {
+        if (data["summary_user_info_array"] is not JArray summaryArray || summaryArray.Count == 0) return;
+
+        var dateKey = DateTime.Now.ToString("yyyyMMdd");
+        var baseDir = string.IsNullOrWhiteSpace(FansOutputDirectory)
+            ? Path.Combine(".", "PluginData", Name)
+            : FansOutputDirectory;
+        Directory.CreateDirectory(baseDir);
+        
+        // 文件名改为按日期分文件的JSON格式
+        var fileName = $"{dateKey}.json";
+        var path = Path.Combine(baseDir, fileName);
+
+        var newRecords = new Dictionary<string, JObject>(); // 改为string键，用于JSON
+        int count = 0;
+
+        foreach (var userInfo in summaryArray)
+        {
+            if (userInfo is not JObject u) continue;
+            var viewerId = u["viewer_id"]?.ToObject<long?>();
+            if (viewerId == null) continue;
+
+            var name = u["name"]?.ToString() ?? "";
+            var fan = u["fan"]?.ToObject<long?>() ?? 0;
+            var comment = u["comment"]?.ToString() ?? "";
+            var rankScore = u["rank_score"]?.ToObject<long?>() ?? 0;
+
+            // 处理circle/社团信息
+            long? circleId = null;
+            string circleName = "";
+            if (u["circle_info"] is JObject ci)
+            {
+                circleId = ci["circle_id"]?.ToObject<long?>();
+                circleName = ci["name"]?.ToString() ?? "";
+            }
+
+            // 构造json数据结构记录
+            var rec = new JObject
+            {
+                ["name"] = name,
+                ["fan"] = fan,
+                ["circle_name"] = circleName,
+                ["ts"] = dateKey, // 简化为yyyymmdd格式
+                ["viewer_id"] = viewerId.Value,
+                ["comment"] = comment,
+                ["rank_score"] = rankScore
+            };
+            if (circleId is long cid) rec["circle_id"] = cid;
+
+            newRecords[viewerId.Value.ToString()] = rec; // 使用viewer_id字符串作为键
+            count++;
+        }
+
+        if (count == 0) return;
+
+        lock (_fansFileLock)
+        {
+            // 读取现有JSON数据（如果文件存在）
+            var existingData = new JObject();
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var jsonText = File.ReadAllText(path);
+                    if (!string.IsNullOrWhiteSpace(jsonText))
+                    {
+                        existingData = JObject.Parse(jsonText);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"读取现有粉丝数据失败，将重新创建文件: {ex.Message}");
+                    existingData = new JObject();
+                }
+            }
+
+            // 合并数据：新数据覆盖旧数据
+            foreach (var kvp in newRecords)
+            {
+                existingData[kvp.Key] = kvp.Value; // 使用viewer_id作为键，覆盖或新增
+            }
+
+            // 重写整个JSON文件
+            var jsonOutput = existingData.ToString(Newtonsoft.Json.Formatting.Indented);
+            File.WriteAllText(path, jsonOutput);
+        }
+
+        Console.WriteLine($"已采集社团粉丝数: {count} 条，文件: {fileName} 🐧gugugaga!!!🐧");
     }
 
     private sealed class SessionAggregate(string key)

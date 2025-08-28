@@ -1,145 +1,148 @@
 # gugugagaLovePlugin
 
-一个用于 [UmamusumeResponseAnalyzer](https://github.com/UmamusumeResponseAnalyzer/UmamusumeResponseAnalyzer) 的插件，按东八区日期统计"每日获得的宝石数量"，并写入单一 JSON 文件。每次比赛结算后会在控制台打印当日累计宝石数。
+一个用于 URA (UmamusumeResponseAnalyzer) 的插件，自动记录每日宝石获取量并可选采集社团粉丝数据。
 
-## ✨ 特性
+## 功能
 
-- 📦 **单一文件累计**：以 `yyyyMMdd` 为键累计每日宝石数，所有历史数据存储在一个 JSON 文件中
-- 🌏 **东八区基准**：使用 China Standard Time 计算日期，确保跨时区一致性
-- 📁 **自定义目录**：可通过 `JsonOutputDirectory` 指定输出目录（留空则使用默认路径）
-- ⚡ **实时统计**：比赛结束后立即更新并显示当日累计数量
-- 🔧 **极简配置**：无需复杂设置，开箱即用
+- **💎 自动胡萝卜统计**: 按东八区日期统计每日获取的胡萝卜数量
+- **📊 粉丝数据采集**: 可选功能，采集社团成员粉丝数据并按日期存储
+- **📁 灵活存储**: 支持自定义输出目录，数据文件独立管理
+- **🔧 配置简单**: 通过URA设置界面轻松配置，无需修改代码
 
-## 🚀 快速开始
+## 特性
 
-### 前置要求
+### 胡萝卜统计 (v1.0+)
+- 自动识别和统计胡萝卜获取（item_type: 90, item_id: 43）
+- 按东八区日期生成 `gugugagaMagicCarrot.json` 文件
+- 实时控制台显示今日累计获取量
+- 跨session累计统计，避免重复计算
 
-- Windows 10/11 (推荐)
-- .NET 8.0 Runtime
-- [UmamusumeResponseAnalyzer](https://github.com/UmamusumeResponseAnalyzer/UmamusumeResponseAnalyzer) 主程序
+### 粉丝数据采集 (v1.1+) 
+- **默认关闭**，需手动启用避免影响原有功能
+- 采集 `summary_user_info_array` 中的关键信息
+- 按日期分文件存储为 `yyyymmdd.json` 格式
+- 同日数据智能去重，相同 viewer_id 保留最新记录
+- 优化字段顺序，时间戳简化为 `yyyymmdd` 格式
+- 详细字段说明请参考 [数据映射文档](src/SummaryUserInfoMapping.md)
 
-### 安装方法
+## 安装
 
-1. 从 [Releases](../../releases) 下载最新版本的 `gugugagaLovePlugin.dll`
-2. 将 DLL 文件放入 UmamusumeResponseAnalyzer 的插件目录：
-   ```
-   %LOCALAPPDATA%\UmamusumeResponseAnalyzer\Plugins\gugugagaLovePlugin\
-   ```
-3. 重启 UmamusumeResponseAnalyzer
-4. 开始游戏并进行比赛，插件会自动工作
+1. 确保已安装 [UmamusumeResponseAnalyzer](https://github.com/UmamusumeResponseAnalyzer/UmamusumeResponseAnalyzer)
+2. 下载最新的 `Plugin.cs` 文件到 URA 的插件目录
+3. 重启 URA 或重新加载插件
 
-## 📋 输出示例
+## 输出示例
 
-### 控制台输出
-```
-今日已获得胡萝卜数量:37(37为实际数量) 🐧gugugaga!!!🐧
-```
-
-### JSON 文件结构
-文件位置：`<输出目录>/gugugagaMagicCarrot.json`
+### 胡萝卜统计文件 (`gugugagaMagicCarrot.json`)
 ```json
 {
-  "20250824": 37,
-  "20250825": 12,
-  "20250826": 25
+  "20240125": 850,
+  "20240126": 1200,
+  "20240127": 750
 }
 ```
 
-## ⚙️ 配置说明
+### 粉丝数据文件 (`20240128.json`)
+```json
+{
+  "12345678901234567": {
+    "name": "テイオー",
+    "fan": 1508234,
+    "circle_name": "ウマ娘愛好会",
+    "ts": "20240128",
+    "viewer_id": 12345678901234567,
+    "comment": "よろしくお願いします",
+    "rank_score": 85230,
+    "circle_id": 987654321
+  }
+}
+```
 
-| 配置项 | 说明 | 默认值 | 示例 |
-|--------|------|--------|------|
-| `JsonOutputDirectory` | 每日宝石汇总文件的输出目录 | `./PluginData/<插件名>` | `C:\Users\YourName\Desktop\uma_data` |
+## 配置说明
 
-## 🛠️ 从源码构建
+通过 URA 设置界面可配置以下选项：
 
-### 环境要求
-- Visual Studio 2022 或 .NET 8.0 SDK
-- Windows 开发环境（推荐）
+### 胡萝卜统计配置
+- **JSON输出目录**: 胡萝卜统计文件的保存位置（留空使用默认位置）
+
+### 粉丝采集配置  
+- **启用粉丝统计**: 是否开启粉丝数据采集功能（默认关闭）
+- **粉丝数据输出目录**: 粉丝数据文件的保存位置（留空使用默认位置）
+
+### 默认输出位置
+- 工作目录下的 `PluginData/gugugagaLovePlugin/` 文件夹
+- 支持相对路径和绝对路径自定义
+
+## 从源码构建
+
+### 前置条件
+- .NET 8.0 SDK
+- UmamusumeResponseAnalyzer 引用
 
 ### 构建步骤
+```bash
+dotnet build -c Release
+```
 
-1. **克隆宿主项目**
-   ```bash
-   git clone https://github.com/UmamusumeResponseAnalyzer/UmamusumeResponseAnalyzer.git
-   cd UmamusumeResponseAnalyzer
-   ```
+构建完成后，将生成的 DLL 文件复制到 URA 插件目录。
 
-2. **克隆本插件项目**
-   ```bash
-   # 在与 UmamusumeResponseAnalyzer 同级目录下
-   cd ..
-   git clone <your-plugin-repo-url> gugugagaLovePlugin
-   ```
+## 跨平台注意事项
 
-3. **调整项目引用路径**
-   
-   打开 `gugugagaLovePlugin/src/RaceRewardTracker.csproj`，确认 ProjectReference 路径正确：
-   
-   ```xml
-   <!-- 如果目录结构为：
-        ├── UmamusumeResponseAnalyzer/
-        └── gugugagaLovePlugin/
-        则使用以下路径： -->
-   <ProjectReference Include="..\..\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer.csproj" />
-   ```
+- **Windows**: 完全支持，无额外配置
+- **Linux/macOS**: 需要安装对应的 .NET 8.0 运行时
+- **时区处理**: 自动使用 "China Standard Time"，非中国地区用户可能需要调整
 
-4. **编译插件**
-   ```bash
-   cd gugugagaLovePlugin/src
-   dotnet build -c Release
-   ```
+## 开发文档
 
-5. **部署**
-   - Windows: PostBuild 会自动复制到插件目录
-   - 其他平台: 手动复制 `bin/Release/net8.0/gugugagaLovePlugin.dll` 到插件目录
+### 插件结构
+- `Plugin.cs`: 主插件代码，包含胡萝卜统计和粉丝采集逻辑
+- `SummaryUserInfoMapping.md`: 详细的数据字段映射文档
 
-### 跨平台注意事项
+### 扩展开发
+插件采用模块化设计，可轻松扩展：
+- 胡萝卜ID配置：修改 `KnownGemKeys` 集合
+- 数据格式：调整 JSON 序列化逻辑  
+- 时区设置：修改 `TzChina` 时区配置
 
-- **时区兼容性**: 当前使用 "China Standard Time"，在 Linux 环境可能需要调整为 "Asia/Shanghai"
-- **PostBuild 脚本**: 仅在 Windows 下有效，其他平台请手动部署
+## 版本历史
 
-## 📖 开发文档（暂时还没搞无内容）
+### v1.1.0 (2024-01-28)
+- 🆕 新增粉丝数据采集功能（可选）
+- 🆕 支持 summary_user_info_array 数据采集
+- 🆕 按日期分文件存储，智能去重更新
+- 🆕 优化字段顺序和时间格式
+- 🆕 添加详细的数据映射文档
+- 🔧 保持向后兼容，默认不影响原有功能
 
-- [已知物品ID对照表](docs/KnownItemIds.md) - 维护宝石等物品的ID映射关系
-- [项目设计说明](docs/项目设计.md) - 详细的架构设计与实现原理
+### v1.0.3 (2024-01-25)
+- 🐛 修复时区转换问题
+- 🔧 优化错误处理逻辑
 
+### v1.0.2 (2024-01-20)
+- 🔧 改进文件锁机制
+- 🔧 优化JSON格式化
 
-### 新增宝石ID支持
+### v1.0.1 (2024-01-15)
+- 🐛 修复路径处理问题
+- 🔧 添加防御性编程
 
-1. 在 `docs/KnownItemIds.md` 中记录新的物品ID
-2. 在 `Plugin.cs` 的 `KnownGemKeys` 集合中添加对应的 `(item_type, item_id)` 元组
-3. 重新编译并测试
+### v1.0.0 (2024-01-10)
+- 🎉 初始版本发布
+- ✨ 基础胡萝卜统计功能
 
-### 代码规范
+## 许可证
 
-- 遵循现有代码风格
-- 添加必要的注释
-- 确保线程安全
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 
-## 📝 版本历史
+## 免责声明
 
-- **v1.0.2** - 单一JSON文件累计、东八区时间、控制台输出优化
-- **v1.0.1** - 基础功能实现
-- **v1.0.0** - 初始版本
+本插件仅用于个人学习和研究目的。使用本插件产生的任何后果由用户自行承担。请确保遵守相关游戏的使用条款和当地法律法规。
 
-## 📄 许可证
+## 相关链接
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## ⚠️ 免责声明
-
-- 本插件仅供学习和个人使用
-- 插件作者不对因使用本插件造成的任何损失承担责任
-- 请确保遵守游戏服务条款
-- 本插件为非官方第三方工具
-
-## 🔗 相关链接
-
-- [UmamusumeResponseAnalyzer 主项目](https://github.com/UmamusumeResponseAnalyzer/UmamusumeResponseAnalyzer)
-- [问题反馈](../../issues)
-- [最新版本下载](../../releases)
+- [UmamusumeResponseAnalyzer](https://github.com/UmamusumeResponseAnalyzer/UmamusumeResponseAnalyzer)
+- [.NET 8.0 下载](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ---
 
-**🐧 gugugaga!!! 🐧**
+🐧 gugugaga!!! 🐧

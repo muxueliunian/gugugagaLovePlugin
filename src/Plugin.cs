@@ -11,7 +11,7 @@ public class Plugin : IPlugin
 {
     public string Name => "gugugagaLovePlugin";
     public string Author => "muxiulianNian";
-    public Version Version => new(1, 1, 0);
+    public Version Version => new(1, 1, 1);
     public string[] Targets => Array.Empty<string>();
 
     [PluginSetting]

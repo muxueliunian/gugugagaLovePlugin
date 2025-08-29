@@ -1,4 +1,5 @@
 using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Concurrent;
 using UmamusumeResponseAnalyzer.Plugin;
 
@@ -14,7 +15,11 @@ public class Plugin : IPlugin
     public string[] Targets => Array.Empty<string>();
 
     [PluginSetting]
-    [PluginDescription("每日宝石汇总文件(gugugagaMagicCarrot.json)的输出目录。留空=工作目录 PluginData/<插件名>；可填绝对或相对路径。")]
+    [PluginDescription("是否启用每日胡萝卜统计 默认 true")]
+    public bool EnableCarrotCollection { get; set; } = true;
+
+    [PluginSetting]
+    [PluginDescription("每日胡萝卜统计文件(gugugagaMagicCarrot.json)的输出目录。留空=工作目录 PluginData/<插件名>；可填绝对或相对路径。")]
     public string JsonOutputDirectory { get; set; } = string.Empty;
 
     // 新增：粉丝统计功能开关与输出目录（默认关闭，避免改变旧行为） gugugaga!!!
@@ -106,6 +111,9 @@ public class Plugin : IPlugin
 
     private void TryRecordRewards(string sessionKey, JObject container)
     {
+        // 开关
+        if (!EnableCarrotCollection) return;
+
         if (container["race_reward_info"] is not JObject rewardInfo) return;
 
         var items = ExtractRewards(rewardInfo);

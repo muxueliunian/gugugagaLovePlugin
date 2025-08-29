@@ -1,5 +1,7 @@
 # gugugagaLovePlugin
 
+**语言版本 / Language**: [中文](README.md) | [日本語](README_JP.md)
+
 一个用于 URA (UmamusumeResponseAnalyzer) 的插件，自动记录每日宝石获取量并可选采集社团粉丝数据。
 
 ## 功能

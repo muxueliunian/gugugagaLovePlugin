@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- 请根据你的宿主仓库路径手动调整下面的 ProjectReference -->
-    <ProjectReference Include="..\..\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer.csproj" />
+    <ProjectReference Include="..\..\UmamusumeResponseAnalyzer-master\UmamusumeResponseAnalyzer-master\UmamusumeResponseAnalyzer\UmamusumeResponseAnalyzer.csproj" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <Target Name="PostBuildCopy" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">

@@ -1,6 +1,8 @@
 using Newtonsoft.Json.Linq;
+using Spectre.Console;
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using UmamusumeResponseAnalyzer.Plugin;
 
 [assembly: LoadInHostContext]
@@ -11,7 +13,7 @@ public class Plugin : IPlugin
 {
     public string Name => "gugugagaLovePlugin";
     public string Author => "muxiulianNian";
-    public Version Version => new(1, 1, 1);
+    public Version Version => new(1, 2, 0);
     public string[] Targets => Array.Empty<string>();
 
     [PluginSetting]
@@ -45,14 +47,34 @@ public class Plugin : IPlugin
     private static readonly object _fansFileLock = new();
     private const string FansNdjsonName = "gugugagaFans.ndjson";
 
+    // 胡萝卜计数相关
+    private static int _currentCarrotCount = 0;
+    private static readonly object _carrotCountLock = new();
+    private static Thread? _refreshThread;
+    private static volatile bool _refreshRunning = false;
+
+    [PluginSetting]
+    [PluginDescription("胡萝卜统计刷新间隔（秒），设置为0禁用定时刷新。默认5秒")]
+    public int RefreshIntervalSeconds { get; set; } = 5;
+
     public void Initialize()
     {
         // 初始化时清理内存聚合，避免跨次运行污染
         _sessions.Clear();
+
+        // 初始化胡萝卜计数
+        _currentCarrotCount = GetTodayTotal();
+        // 显示初始状态
+        DisplayCarrotStatus(_currentCarrotCount);
+
+        // 启动定时刷新线程
+        StartRefreshThread();
     }
 
     public void Dispose()
     {
+        // 停止刷新线程
+        StopRefreshThread();
     }
 
     public Task UpdatePlugin(Spectre.Console.ProgressContext ctx)
@@ -124,7 +146,7 @@ public class Plugin : IPlugin
             if (isTopData)
             {
                 var totalTodayNoGain = GetTodayTotal();
-                Console.WriteLine($"今日已获得胡萝卜数量:{totalTodayNoGain} 🐧gugugaga!!!🐧");
+                UpdateCarrotCount(totalTodayNoGain); // 更新状态栏显示
             }
             return;
         }
@@ -139,12 +161,12 @@ public class Plugin : IPlugin
             if (gainGem > 0)
             {
                 var updated = AppendToDailyGemJson(gainGem);
-                Console.WriteLine($"今日已获得胡萝卜数量:{updated} 🐧gugugaga!!!🐧");
+                UpdateCarrotCount(updated); // 更新状态栏显示
             }
             else
             {
                 var totalToday = GetTodayTotal();
-                Console.WriteLine($"今日已获得胡萝卜数量:{totalToday} 🐧gugugaga!!!🐧");
+                UpdateCarrotCount(totalToday); // 更新状态栏显示
             }
         }
     }
@@ -345,6 +367,79 @@ public class Plugin : IPlugin
         }
 
         Console.WriteLine($"已采集社团粉丝数: {count} 条，文件: {fileName} 🐧gugugaga!!!🐧");
+    }
+
+    // 显示彩色胡萝卜状态（非阻塞）
+    private static void DisplayCarrotStatus(int count)
+    {
+        // 根据数量不同显示不同颜色
+        var color = count switch
+        {
+            >= 110 => "purple",      // 110以上：紫色
+            >= 70 => "blue",         // 70-109：蓝色
+            >= 40 => "red",          // 40-69：红色
+            >= 10 => "green",        // 10-39：绿色
+            _ => "grey"              // 0-9：灰色
+        };
+
+        // 输出彩色文本：今日已获得胡萝卜数量:数字 🐧
+        AnsiConsole.MarkupLine($"今日育成时已获得胡萝卜数量:[{color}]{count}[/] 🐧");
+    }
+
+    // 更新胡萝卜计数（线程安全）并显示
+    private static void UpdateCarrotCount(int newCount)
+    {
+        lock (_carrotCountLock)
+        {
+            _currentCarrotCount = newCount;
+        }
+        DisplayCarrotStatus(newCount);
+    }
+
+    // 启动定时刷新线程
+    private void StartRefreshThread()
+    {
+        if (_refreshRunning || RefreshIntervalSeconds <= 0) return;
+
+        _refreshRunning = true;
+        _refreshThread = new Thread(() =>
+        {
+            while (_refreshRunning)
+            {
+                try
+                {
+                    // 等待指定间隔
+                    Thread.Sleep(RefreshIntervalSeconds * 1000);
+
+                    if (!_refreshRunning) break;
+
+                    // 从文件读取最新数据并显示
+                    int currentCount = GetTodayTotal();
+                    lock (_carrotCountLock)
+                    {
+                        _currentCarrotCount = currentCount;
+                    }
+                    DisplayCarrotStatus(currentCount);
+                }
+                catch
+                {
+                    // 防止线程崩溃
+                }
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "CarrotRefreshThread"
+        };
+
+        _refreshThread.Start();
+    }
+
+    // 停止定时刷新线程
+    private static void StopRefreshThread()
+    {
+        _refreshRunning = false;
+        _refreshThread?.Join(2000); // 等待最多2秒
     }
 
     private sealed class SessionAggregate(string key)

@@ -13,7 +13,7 @@ public class Plugin : IPlugin
 {
     public string Name => "gugugagaLovePlugin";
     public string Author => "muxiulianNian";
-    public Version Version => new(1, 2, 0);
+    public Version Version => new(1, 3, 0);
     public string[] Targets => Array.Empty<string>();
 
     [PluginSetting]
@@ -35,7 +35,7 @@ public class Plugin : IPlugin
 
     private static readonly ConcurrentDictionary<string, SessionAggregate> _sessions = new();
     private static readonly object _fileLock = new();
-    private static readonly TimeZoneInfo TzChina = TimeZoneInfo.FindSystemTimeZoneById("China Standard Time");
+    private static readonly TimeZoneInfo TzJapan = TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time");
     private static readonly HashSet<(int itemType, int itemId)> KnownGemKeys = new()
     {
         (90, 43),
@@ -50,12 +50,12 @@ public class Plugin : IPlugin
     // 胡萝卜计数相关
     private static int _currentCarrotCount = 0;
     private static readonly object _carrotCountLock = new();
-    private static Thread? _refreshThread;
-    private static volatile bool _refreshRunning = false;
-
-    [PluginSetting]
-    [PluginDescription("胡萝卜统计刷新间隔（秒），设置为0禁用定时刷新。默认5秒")]
-    public int RefreshIntervalSeconds { get; set; } = 5;
+    private static int _lastPrintedCount = -1; // For UI deduplication
+    
+    // Fan buffering
+    private static readonly ConcurrentDictionary<string, JObject> _fanBuffer = new();
+    private static Timer? _fanFlushTimer;
+    private const int FanFlushIntervalMs = 30000; // 30 seconds
 
     public void Initialize()
     {
@@ -67,14 +67,15 @@ public class Plugin : IPlugin
         // 显示初始状态
         DisplayCarrotStatus(_currentCarrotCount);
 
-        // 启动定时刷新线程
-        StartRefreshThread();
+        // Start fan flush timer
+        _fanFlushTimer = new Timer(FlushFansToDisk, null, FanFlushIntervalMs, FanFlushIntervalMs);
     }
 
     public void Dispose()
     {
-        // 停止刷新线程
-        StopRefreshThread();
+        // Flush any remaining fans
+        FlushFansToDisk(null);
+        _fanFlushTimer?.Dispose();
     }
 
     public Task UpdatePlugin(Spectre.Console.ProgressContext ctx)
@@ -201,8 +202,7 @@ public class Plugin : IPlugin
                 obj = new JObject();
             }
     
-            var now8 = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TzChina);
-            var dateKey = now8.ToString("yyyyMMdd"); // 以东八区日期为键
+            var dateKey = GetJapanDateKey(); // 以日本时间5点为分界线的日期
             var current = obj[dateKey]?.ToObject<int?>() ?? 0;
             var updated = current + delta;
             obj[dateKey] = updated;
@@ -230,8 +230,7 @@ public class Plugin : IPlugin
                 }
                 var txt = File.ReadAllText(path);
                 var obj = string.IsNullOrWhiteSpace(txt) ? new JObject() : JObject.Parse(txt);
-                var now8 = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TzChina);
-                var dateKey = now8.ToString("yyyyMMdd");
+                var dateKey = GetJapanDateKey();
                 return obj[dateKey]?.ToObject<int?>() ?? 0;
             }
             catch
@@ -328,45 +327,71 @@ public class Plugin : IPlugin
             };
             if (circleId is long cid) rec["circle_id"] = cid;
 
-            newRecords[viewerId.Value.ToString()] = rec; // 使用viewer_id字符串作为键
+            // Buffer the data instead of writing immediately
+            _fanBuffer[viewerId.Value.ToString()] = rec;
             count++;
         }
 
-        if (count == 0) return;
+        if (count > 0)
+        {
+            // Optional: Log to console that we buffered some fans, or just stay silent to avoid spam
+            // Console.WriteLine($"已缓存社团粉丝数: {count} 条");
+        }
+    }
+
+    private void FlushFansToDisk(object? state)
+    {
+        if (_fanBuffer.IsEmpty) return;
+
+        var dateKey = DateTime.Now.ToString("yyyyMMdd");
+        var baseDir = string.IsNullOrWhiteSpace(FansOutputDirectory)
+            ? Path.Combine(".", "PluginData", Name)
+            : FansOutputDirectory;
+        Directory.CreateDirectory(baseDir);
+        var fileName = $"{dateKey}.json";
+        var path = Path.Combine(baseDir, fileName);
+
+        // Take a snapshot of current buffer to write
+        var snapshot = new Dictionary<string, JObject>();
+        foreach (var key in _fanBuffer.Keys)
+        {
+            if (_fanBuffer.TryRemove(key, out var val))
+            {
+                snapshot[key] = val;
+            }
+        }
+
+        if (snapshot.Count == 0) return;
 
         lock (_fansFileLock)
         {
-            // 读取现有JSON数据（如果文件存在）
-            var existingData = new JObject();
+            JObject existingData;
             if (File.Exists(path))
             {
                 try
                 {
                     var jsonText = File.ReadAllText(path);
-                    if (!string.IsNullOrWhiteSpace(jsonText))
-                    {
-                        existingData = JObject.Parse(jsonText);
-                    }
+                    existingData = string.IsNullOrWhiteSpace(jsonText) ? new JObject() : JObject.Parse(jsonText);
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Console.WriteLine($"读取现有粉丝数据失败，将重新创建文件: {ex.Message}");
                     existingData = new JObject();
                 }
             }
-
-            // 合并数据：新数据覆盖旧数据
-            foreach (var kvp in newRecords)
+            else
             {
-                existingData[kvp.Key] = kvp.Value; // 使用viewer_id作为键，覆盖或新增
+                existingData = new JObject();
             }
 
-            // 重写整个JSON文件
-            var jsonOutput = existingData.ToString(Newtonsoft.Json.Formatting.Indented);
-            File.WriteAllText(path, jsonOutput);
-        }
+            foreach (var kvp in snapshot)
+            {
+                existingData[kvp.Key] = kvp.Value;
+            }
 
-        Console.WriteLine($"已采集社团粉丝数: {count} 条，文件: {fileName} 🐧gugugaga!!!🐧");
+            File.WriteAllText(path, existingData.ToString(Newtonsoft.Json.Formatting.Indented));
+        }
+        
+        Console.WriteLine($"[gugugaga] 已刷写粉丝数据: {snapshot.Count} 条到 {fileName}");
     }
 
     // 显示彩色胡萝卜状态（非阻塞）
@@ -382,6 +407,10 @@ public class Plugin : IPlugin
             _ => "grey"              // 0-9：灰色
         };
 
+        // Deduplication: Only print if count changed
+        if (count == _lastPrintedCount) return;
+        _lastPrintedCount = count;
+
         // 输出彩色文本：今日已获得胡萝卜数量:数字 🐧
         AnsiConsole.MarkupLine($"今日育成时已获得胡萝卜数量:[{color}]{count}[/] 🐧");
     }
@@ -396,51 +425,8 @@ public class Plugin : IPlugin
         DisplayCarrotStatus(newCount);
     }
 
-    // 启动定时刷新线程
-    private void StartRefreshThread()
-    {
-        if (_refreshRunning || RefreshIntervalSeconds <= 0) return;
+    // 移除定时刷新线程相关代码
 
-        _refreshRunning = true;
-        _refreshThread = new Thread(() =>
-        {
-            while (_refreshRunning)
-            {
-                try
-                {
-                    // 等待指定间隔
-                    Thread.Sleep(RefreshIntervalSeconds * 1000);
-
-                    if (!_refreshRunning) break;
-
-                    // 从文件读取最新数据并显示
-                    int currentCount = GetTodayTotal();
-                    lock (_carrotCountLock)
-                    {
-                        _currentCarrotCount = currentCount;
-                    }
-                    DisplayCarrotStatus(currentCount);
-                }
-                catch
-                {
-                    // 防止线程崩溃
-                }
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "CarrotRefreshThread"
-        };
-
-        _refreshThread.Start();
-    }
-
-    // 停止定时刷新线程
-    private static void StopRefreshThread()
-    {
-        _refreshRunning = false;
-        _refreshThread?.Join(2000); // 等待最多2秒
-    }
 
     private sealed class SessionAggregate(string key)
     {
@@ -450,4 +436,16 @@ public class Plugin : IPlugin
     }
 
     private static bool IsGem(int itemType, int itemId) => KnownGemKeys.Contains((itemType, itemId));
+
+    // 获取日本时间5点为分界线的日期键
+    private static string GetJapanDateKey()
+    {
+        var nowJapan = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TzJapan);
+        // 如果是凌晨0-4点，算作前一天
+        if (nowJapan.Hour < 5)
+        {
+            nowJapan = nowJapan.AddDays(-1);
+        }
+        return nowJapan.ToString("yyyyMMdd");
+    }
 }

@@ -1,5 +1,10 @@
 # gugugagaLovePlugin
 
+> [!WARNING]
+> このプロジェクトは現在非推奨で、メンテナンスを終了しています。
+> 
+> 機能を拡張した後継版は Rust で再実装し、こちらで公開しています：[`gugaURA`](https://github.com/muxueliunian/gugaURA)
+
 > **⚠️ 注意：この日本語版READMEはAIによって生成されたものです。翻訳の正確性は保証されません。正確な情報については、オリジナルの英語版またはオリジナルの中国語版READMEをご参照ください。**
 
 **语言版本 / Language**:[中文](README.md) | [日本語](README_JP.md)

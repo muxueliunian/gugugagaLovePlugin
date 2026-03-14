@@ -1,5 +1,10 @@
 # gugugagaLovePlugin
 
+> [!WARNING]
+> 本项目已弃用并停止维护。
+> 
+> 功能升级版已使用 Rust 重写，并已开源：[`gugaURA`](https://github.com/muxueliunian/gugaURA)
+
 **语言版本 / Language**: [中文](README.md) | [日本語](README_JP.md)
 
 一个用于 URA (UmamusumeResponseAnalyzer) 的插件，自动记录每日宝石获取量并可选采集社团粉丝数据。
